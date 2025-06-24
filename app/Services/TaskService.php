@@ -1,7 +1,9 @@
 <?php
 namespace App\Services;
 
-use App\DataTransferObjects\Task\TaskData;
+
+use App\DTOs\Task\TaskData;
+use App\DTOs\Task\TaskDTO;
 use App\Models\Task;
 use App\Models\User;
 use App\Repositories\TaskRepositoryInterface;
@@ -26,17 +28,21 @@ class TaskService
         return $this->repository->store($payload);
     }
 
-    public function update(Task $task, TaskData $data): Task
-    {
-        $payload = [
-            'title' => $data->title,
-            'description' => $data->description,
-            'is_completed' => $data->is_completed,
-            'category_ids' => $data->category_ids,
-        ];
+public function update(Task $task, TaskDTO $data): Task
 
-        return $this->repository->update($task, $payload);
-    }
+{
+$categoryIds = $data->category_ids ?? [];
+$dataArray = [
+    'title' => $data->title,
+    'description' => $data->description,
+    'is_completed' => $data->is_completed,
+];
+$task->update($dataArray);
+$task->categories()->sync($categoryIds);
+return $task->load('categories');
+
+}
+
 
     public function delete(Task $task): void
     {

@@ -1,5 +1,5 @@
 <?php
-namespace App\DTO\Task;
+namespace App\DTOs\Task;
 
 class TaskDTO
 {

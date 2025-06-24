@@ -1,6 +1,6 @@
 <?php
 
-namespace App\DataTransferObjects\Task;
+namespace App\DTOs\Task;
 
 class TaskData
 {

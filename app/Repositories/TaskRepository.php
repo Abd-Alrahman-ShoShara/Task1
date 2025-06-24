@@ -6,21 +6,17 @@ use App\Models\Task;
 
 class TaskRepository implements TaskRepositoryInterface
 {
-    public function store(array $data): Task
+     public function store(array $data): Task
     {
-        // نفصل التصنيفات عن باقي البيانات
+        // فصل category_ids عن باقي البيانات
         $categoryIds = $data['category_ids'] ?? [];
         unset($data['category_ids']);
 
+        // إنشاء الـ Task
         $task = Task::create($data);
 
-        // ربط التصنيفات بالمهمة
-        if (!empty($categoryIds)) {
-            $task->categories()->sync($categoryIds);
-        }
-
-        // تحميل التصنيفات معها مباشرة
-        $task->load('categories');
+        // ربط التصنيفات (categories)
+        $task->categories()->sync($categoryIds);
 
         return $task;
     }
@@ -35,14 +31,15 @@ class TaskRepository implements TaskRepositoryInterface
     return $task;
 }
 
-    public function update(Task $task, array $data): Task
+   public function update(Task $task, array $data): Task
     {
-        $categories = $data['category_ids'] ?? null;
+        $categoryIds = $data['category_ids'] ?? null;
         unset($data['category_ids']);
 
         $task->update($data);
-        if ($categories !== null) {
-            $task->categories()->sync($categories);
+
+        if ($categoryIds !== null) {
+            $task->categories()->sync($categoryIds);
         }
 
         return $task;

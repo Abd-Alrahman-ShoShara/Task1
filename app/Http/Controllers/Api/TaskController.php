@@ -4,7 +4,12 @@ namespace App\Http\Controllers\Api;
 
 
 
-use App\DTOs\TaskData;
+
+
+
+use App\DTOs\Task\TaskData;
+
+use App\DTOs\Task\TaskDTO;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\StoreTaskRequest;
 use App\Http\Requests\TaskStoreRequest;
@@ -41,17 +46,18 @@ public function store(StoreTaskRequest $request)
 }
 
 
-    public function update(TaskUpdateRequest $request, Task $task): JsonResponse
-    {
-        $this->authorize('update', $task); // لاحقًا
-        $task = $this->service->updateTask($task, TaskDTO::fromRequest($request));
-        return response()->json($task);
-    }
+public function update(TaskUpdateRequest $request, Task $task): JsonResponse
+{
+
+$task = $this->service->update($task, TaskDTO::fromRequest($request));
+
+    return response()->json($task);
+}
+
 
     public function destroy(Task $task): JsonResponse
     {
-        $this->authorize('delete', $task); // لاحقًا
-        $this->service->deleteTask($task);
+        $this->service->delete($task);
         return response()->json(['message' => 'Task deleted']);
     }
 }

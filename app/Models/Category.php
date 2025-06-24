@@ -13,9 +13,10 @@ protected $fillable = [
         'name',
     ];
 
-    public function tasks()
-    {
-        return $this->belongsToMany(Task::class, 'category_task');
-    }
+public function tasks()
+{
+    return $this->belongsToMany(Task::class, 'category_task');
+}
+
 
 }
