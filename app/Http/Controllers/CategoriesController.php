@@ -7,7 +7,7 @@ use Illuminate\Http\Request;
 
 class CategoriesController extends Controller
 {
-    //
+    //و
         public function allCategories()
     {
         $allCategories = Category::all();
