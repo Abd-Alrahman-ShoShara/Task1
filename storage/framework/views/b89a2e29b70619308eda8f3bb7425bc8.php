@@ -1,9 +1,11 @@
+
 <!DOCTYPE html>
 <html lang="ar" dir="rtl">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>مهامي</title>
+    <meta name="csrf-token" content="<?php echo e(csrf_token()); ?>">
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&display=swap" rel="stylesheet">
     <style>
@@ -41,6 +43,28 @@
         }
         .category-tag {
             background: linear-gradient(135deg, #ddd6fe 0%, #c4b5fd 100%);
+        }
+        .toast {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 1000;
+            max-width: 400px;
+            padding: 16px;
+            border-radius: 8px;
+            color: white;
+            font-weight: 600;
+            transform: translateX(100%);
+            transition: transform 0.3s ease;
+        }
+        .toast.show {
+            transform: translateX(0);
+        }
+        .toast.success {
+            background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+        }
+        .toast.error {
+            background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
         }
     </style>
 </head>
@@ -175,9 +199,65 @@
         </div>
     </div>
 
+    <!-- Toast Notifications -->
+    <div id="toast-container"></div>
+
     <script>
         let currentEditingTaskId = null;
         let taskToDelete = null;
+
+        // إعداد CSRF Token
+        function getCSRFToken() {
+            return document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') || '';
+        }
+
+        // إعداد الهيدرز الافتراضية
+        function getHeaders() {
+            const token = localStorage.getItem('token');
+            const headers = {
+                'Accept': 'application/json',
+                'Content-Type': 'application/json'
+            };
+
+            if (token) {
+                headers['Authorization'] = `Bearer ${token}`;
+            }
+
+            const csrfToken = getCSRFToken();
+            if (csrfToken) {
+                headers['X-CSRF-TOKEN'] = csrfToken;
+            }
+
+            return headers;
+        }
+
+        // عرض إشعارات Toast
+        function showToast(message, type = 'success') {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            toast.className = `toast ${type}`;
+            toast.innerHTML = `
+                <div class="flex items-center justify-between">
+                    <span>${message}</span>
+                    <button onclick="this.parentElement.parentElement.remove()" class="mr-4 opacity-70 hover:opacity-100">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                        </svg>
+                    </button>
+                </div>
+            `;
+            
+            container.appendChild(toast);
+            
+            // إظهار التوست
+            setTimeout(() => toast.classList.add('show'), 100);
+            
+            // إخفاء التوست تلقائياً بعد 5 ثوان
+            setTimeout(() => {
+                toast.classList.remove('show');
+                setTimeout(() => toast.remove(), 300);
+            }, 5000);
+        }
 
         // تسجيل الخروج
         async function logout() {
@@ -190,21 +270,14 @@
             try {
                 const res = await fetch('/api/auth/logout', {
                     method: 'POST',
-                    headers: {
-                        'Authorization': `Bearer ${token}`,
-                        'Accept': 'application/json'
-                    }
+                    headers: getHeaders()
                 });
 
-                // حذف الـ token من localStorage بغض النظر عن نتيجة الطلب
                 localStorage.removeItem('token');
-                
-                // إعادة التوجيه إلى صفحة تسجيل الدخول
                 window.location.href = '/login';
                 
             } catch (error) {
                 console.error('خطأ في تسجيل الخروج:', error);
-                // حذف الـ token والتوجيه حتى لو فشل الطلب
                 localStorage.removeItem('token');
                 window.location.href = '/login';
             }
@@ -214,21 +287,23 @@
         async function fetchTasks() {
             const token = localStorage.getItem('token');
             if (!token) {
-                alert('الرجاء تسجيل الدخول أولاً');
+                showToast('الرجاء تسجيل الدخول أولاً', 'error');
                 window.location.href = '/login';
                 return;
             }
 
             try {
                 const res = await fetch('/api/tasks', {
-                    headers: {
-                        'Authorization': `Bearer ${token}`,
-                        'Accept': 'application/json'
-                    }
+                    headers: getHeaders()
                 });
 
                 if (!res.ok) {
-                    throw new Error('فشل في جلب المهام');
+                    if (res.status === 401) {
+                        localStorage.removeItem('token');
+                        window.location.href = '/login';
+                        return;
+                    }
+                    throw new Error(`HTTP ${res.status}: ${res.statusText}`);
                 }
 
                 const tasks = await res.json();
@@ -236,7 +311,7 @@
                 updateStats(tasks);
             } catch (error) {
                 console.error('فشل في جلب المهام:', error);
-                showError('حدث خطأ أثناء جلب المهام');
+                showToast('حدث خطأ أثناء جلب المهام', 'error');
             }
         }
 
@@ -324,15 +399,15 @@
             currentEditingTaskId = id;
             document.getElementById('modal-title').textContent = 'تعديل المهمة';
             
-            const token = localStorage.getItem('token');
             try {
                 const res = await fetch('/api/tasks', {
-                    headers: {
-                        'Authorization': `Bearer ${token}`,
-                        'Accept': 'application/json'
-                    }
+                    headers: getHeaders()
                 });
                 
+                if (!res.ok) {
+                    throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+                }
+
                 const tasks = await res.json();
                 const task = tasks.find(t => t.id === id);
                 
@@ -352,7 +427,8 @@
                     document.getElementById('task-modal').classList.remove('hidden');
                 }
             } catch (error) {
-                showError('فشل في جلب بيانات المهمة');
+                console.error('فشل في جلب بيانات المهمة:', error);
+                showToast('فشل في جلب بيانات المهمة', 'error');
             }
         }
 
@@ -364,14 +440,14 @@
 
         // تحميل التصنيفات
         async function loadCategories() {
-            const token = localStorage.getItem('token');
             try {
                 const res = await fetch('/api/categories', {
-                    headers: {
-                        'Authorization': `Bearer ${token}`,
-                        'Accept': 'application/json'
-                    }
+                    headers: getHeaders()
                 });
+
+                if (!res.ok) {
+                    throw new Error(`HTTP ${res.status}: ${res.statusText}`);
+                }
 
                 const data = await res.json();
                 const categories = data.Categories || [];
@@ -384,7 +460,8 @@
                     </label>
                 `).join('');
             } catch (error) {
-                showError('فشل في تحميل التصنيفات');
+                console.error('فشل في تحميل التصنيفات:', error);
+                showToast('فشل في تحميل التصنيفات', 'error');
             }
         }
 
@@ -400,27 +477,22 @@
             const category_ids = Array.from(checkboxes).map(cb => parseInt(cb.value));
 
             if (!title || !description) {
-                showError('يرجى تعبئة جميع الحقول المطلوبة');
+                showToast('يرجى تعبئة جميع الحقول المطلوبة', 'error');
                 return;
             }
 
             if (category_ids.length === 0) {
-                showError('يرجى اختيار تصنيف واحد على الأقل');
+                showToast('يرجى اختيار تصنيف واحد على الأقل', 'error');
                 return;
             }
 
-            const token = localStorage.getItem('token');
             const url = currentEditingTaskId ? `/api/updateTasks/${currentEditingTaskId}` : '/api/addtasks';
             const method = currentEditingTaskId ? 'PUT' : 'POST';
 
             try {
                 const res = await fetch(url, {
                     method: method,
-                    headers: {
-                        'Authorization': `Bearer ${token}`,
-                        'Accept': 'application/json',
-                        'Content-Type': 'application/json'
-                    },
+                    headers: getHeaders(),
                     body: JSON.stringify({
                         title,
                         description,
@@ -430,15 +502,17 @@
                 });
 
                 if (res.ok) {
-                    showSuccess(currentEditingTaskId ? 'تم تحديث المهمة بنجاح' : 'تمت إضافة المهمة بنجاح');
+                    showToast(currentEditingTaskId ? 'تم تحديث المهمة بنجاح' : 'تمت إضافة المهمة بنجاح', 'success');
                     closeTaskModal();
                     fetchTasks();
                 } else {
-                    const errorData = await res.json();
-                    showError('فشل في حفظ المهمة: ' + (errorData.message || 'خطأ غير معروف'));
+                    const errorData = await res.json().catch(() => ({}));
+                    const errorMessage = errorData.message || `HTTP ${res.status}: ${res.statusText}`;
+                    showToast('فشل في حفظ المهمة: ' + errorMessage, 'error');
                 }
             } catch (error) {
-                showError('حدث خطأ أثناء الاتصال بالسيرفر');
+                console.error('حدث خطأ أثناء الاتصال بالسيرفر:', error);
+                showToast('حدث خطأ أثناء الاتصال بالسيرفر', 'error');
             }
         });
 
@@ -458,40 +532,39 @@
         async function confirmDelete() {
             if (!taskToDelete) return;
 
-            const token = localStorage.getItem('token');
             try {
                 const res = await fetch(`/api/deleteTasks/${taskToDelete}`, {
                     method: 'DELETE',
-                    headers: {
-                        'Authorization': `Bearer ${token}`,
-                        'Accept': 'application/json'
-                    }
+                    headers: getHeaders()
                 });
 
                 if (res.ok) {
-                    showSuccess('تم حذف المهمة بنجاح');
+                    showToast('تم حذف المهمة بنجاح', 'success');
                     closeDeleteModal();
                     fetchTasks();
                 } else {
-                    showError('فشل في حذف المهمة');
+                    const errorData = await res.json().catch(() => ({}));
+                    const errorMessage = errorData.message || `HTTP ${res.status}: ${res.statusText}`;
+                    showToast('فشل في حذف المهمة: ' + errorMessage, 'error');
                 }
             } catch (error) {
-                showError('حدث خطأ أثناء الاتصال بالسيرفر');
+                console.error('حدث خطأ أثناء الاتصال بالسيرفر:', error);
+                showToast('حدث خطأ أثناء الاتصال بالسيرفر', 'error');
             }
         }
 
-        // عرض رسائل النجاح والخطأ
-        function showSuccess(message) {
-            // يمكنك استخدام مكتبة Toast أو إنشاء إشعارات مخصصة
-            alert(message);
-        }
-
-        function showError(message) {
-            alert(message);
-        }
-
-        // تحميل المهام عند فتح الصفحة
-        fetchTasks();
+        // إعداد الصفحة عند التحميل
+        document.addEventListener('DOMContentLoaded', function() {
+            // التحقق من وجود التوكن
+            const token = localStorage.getItem('token');
+            if (!token) {
+                window.location.href = '/login';
+                return;
+            }
+            
+            // تحميل المهام
+            fetchTasks();
+        });
     </script>
 </body>
 </html><?php /**PATH C:\Users\ASUS\Desktop\tasks mangment\task-manager\resources\views/tasks.blade.php ENDPATH**/ ?>

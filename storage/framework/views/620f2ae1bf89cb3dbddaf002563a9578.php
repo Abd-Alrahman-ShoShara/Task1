@@ -298,7 +298,6 @@
             passwordStrengthText.textContent = `قوة كلمة المرور: ${strength.text}`;
         }
 
-        // تعطيل/تفعيل الزر
         function toggleRegisterButton(disabled) {
             registerBtn.disabled = disabled;
             if (disabled) {
@@ -325,7 +324,6 @@
             }, 5000);
         }
 
-        // عرض رسالة النجاح
         function showSuccess(message) {
             successMessage.textContent = message;
             successMessage.classList.remove('hidden');
@@ -348,7 +346,6 @@
             const password = document.getElementById('password').value.trim();
             const passwordConfirmation = document.getElementById('password_confirmation').value.trim();
 
-            // التحقق من صحة البيانات
             if (!name || !email || !password || !passwordConfirmation) {
                 showError('يرجى تعبئة جميع الحقول');
                 toggleRegisterButton(false);
@@ -374,7 +371,6 @@
             }
 
             try {
-                // محاولة استخدام API endpoint أولاً
                 let response = await fetch('/api/auth/register', {
                     method: 'POST',
                     headers: {
@@ -390,7 +386,6 @@
                     })
                 });
 
-                // إذا فشل API endpoint، جرب web route
                 if (!response.ok && response.status === 404) {
                     response = await fetch('/register', {
                         method: 'POST',
@@ -411,7 +406,7 @@
                 const data = await response.json();
 
                 if (!response.ok) {
-                    // معالجة أخطاء التحقق من صحة البيانات
+
                     if (data.errors) {
                         const errorMessages = Object.values(data.errors).flat();
                         throw new Error(errorMessages.join(', '));
@@ -419,18 +414,18 @@
                     throw new Error(data.message || 'فشل إنشاء الحساب');
                 }
 
-                // رسالة نجاح
+
                 showSuccess('تم إنشاء الحساب بنجاح! جاري تسجيل الدخول...');
                 registerText.textContent = 'تم بنجاح! جاري التحويل...';
                 registerBtn.classList.remove('btn-register');
                 registerBtn.classList.add('bg-green-500');
                 
-                // تخزين التوكن إذا كان متوفراً
+
                 if (data.token) {
                     localStorage.setItem('token', data.token);
                 }
 
-                // التحويل إلى صفحة المهام
+
                 setTimeout(() => {
                     window.location.href = '/tasks-page';
                 }, 2000);
@@ -442,13 +437,13 @@
             }
         });
 
-        // التحقق من صحة البريد الإلكتروني
+
         function isValidEmail(email) {
             const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
             return emailRegex.test(email);
         }
 
-        // تأثير بصري للحقول
+
         const inputs = document.querySelectorAll('.input-field');
         inputs.forEach(input => {
             input.addEventListener('focus', function() {
@@ -460,7 +455,7 @@
             });
         });
 
-        // التحقق من تطابق كلمة المرور
+
         passwordConfirmField.addEventListener('input', function() {
             const password = passwordField.value;
             const confirmPassword = this.value;
@@ -474,7 +469,6 @@
             }
         });
 
-        // التحقق من وجود توكن مسبق
         if (localStorage.getItem('token')) {
             window.location.href = '/tasks-page';
         }

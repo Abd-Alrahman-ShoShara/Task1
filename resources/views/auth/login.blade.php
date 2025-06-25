@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>تسجيل الدخول</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@400;600;700&display=swap" rel="stylesheet">
@@ -106,6 +107,9 @@
 
         <!-- Login Form -->
         <form id="login-form" class="space-y-6">
+            <!-- CSRF Token Hidden Field -->
+            <input type="hidden" id="csrf-token" name="_token" value="">
+            
             <div class="input-group">
                 <label for="email" class="block text-sm font-semibold text-gray-700 mb-2">البريد الإلكتروني</label>
                 <div class="relative">
@@ -166,6 +170,56 @@
         const loadingSpinner = document.getElementById('loading-spinner');
         const errorMessage = document.getElementById('error-message');
 
+        // Get CSRF token from meta tag or fetch it
+        function getCSRFToken() {
+            // Method 1: From meta tag (Laravel style)
+            const metaToken = document.querySelector('meta[name="csrf-token"]');
+            if (metaToken) {
+                return metaToken.getAttribute('content');
+            }
+            
+            // Method 2: From cookie (if using cookie-based CSRF)
+            const cookies = document.cookie.split(';');
+            for (let cookie of cookies) {
+                const [name, value] = cookie.trim().split('=');
+                if (name === 'XSRF-TOKEN' || name === 'csrf_token') {
+                    return decodeURIComponent(value);
+                }
+            }
+            
+            return null;
+        }
+
+        // Fetch CSRF token from server if not available
+        async function fetchCSRFToken() {
+            try {
+                const response = await fetch('/sanctum/csrf-cookie', {
+                    method: 'GET',
+                    credentials: 'same-origin'
+                });
+                
+                if (response.ok) {
+                    return getCSRFToken();
+                }
+            } catch (error) {
+                console.log('Failed to fetch CSRF token:', error);
+            }
+            return null;
+        }
+
+        // Initialize CSRF token
+        async function initializeCSRFToken() {
+            let token = getCSRFToken();
+            
+            if (!token) {
+                token = await fetchCSRFToken();
+            }
+            
+            if (token) {
+                document.getElementById('csrf-token').value = token;
+            }
+        }
+
         // تعطيل/تفعيل الزر
         function toggleLoginButton(disabled) {
             loginBtn.disabled = disabled;
@@ -205,6 +259,7 @@
 
             const email = document.getElementById('email').value.trim();
             const password = document.getElementById('password').value.trim();
+            const csrfToken = document.getElementById('csrf-token').value;
 
             // التحقق من صحة البيانات
             if (!email || !password) {
@@ -219,24 +274,56 @@
                 return;
             }
 
+            // Prepare headers
+            const headers = {
+                'Content-Type': 'application/json',
+                'Accept': 'application/json'
+            };
+
+            // Add CSRF token to headers
+            if (csrfToken) {
+                headers['X-CSRF-TOKEN'] = csrfToken;
+            }
+
+            // Also add X-Requested-With for Laravel
+            headers['X-Requested-With'] = 'XMLHttpRequest';
+
+            // Prepare request body
+            const requestBody = { email, password };
+            
+            // If using form data instead of JSON
+            // const formData = new FormData();
+            // formData.append('email', email);
+            // formData.append('password', password);
+            // if (csrfToken) formData.append('_token', csrfToken);
+
             try {
                 const response = await fetch('/api/auth/login', {
                     method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                        'Accept': 'application/json'
-                    },
-                    body: JSON.stringify({ email, password })
+                    headers: headers,
+                    credentials: 'same-origin', // Important for CSRF cookies
+                    body: JSON.stringify(requestBody)
+                    // body: formData // Use this if sending form data
                 });
 
                 const data = await response.json();
 
                 if (!response.ok) {
+                    // Handle specific CSRF error
+                    if (response.status === 419) {
+                        // Try to refresh CSRF token and retry
+                        await initializeCSRFToken();
+                        showError('انتهت صلاحية الجلسة. يرجى المحاولة مرة أخرى');
+                        toggleLoginButton(false);
+                        return;
+                    }
                     throw new Error(data.message || 'فشل تسجيل الدخول');
                 }
 
                 // تخزين التوكن
-                localStorage.setItem('token', data.token);
+                if (data.token) {
+                    localStorage.setItem('token', data.token);
+                }
 
                 // رسالة نجاح
                 loginText.textContent = 'تم بنجاح! جاري التحويل...';
@@ -275,6 +362,11 @@
         if (localStorage.getItem('token')) {
             window.location.href = '/tasks-page';
         }
+
+        // Initialize CSRF token on page load
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeCSRFToken();
+        });
     </script>
 </body>
-</html>
+</htm
